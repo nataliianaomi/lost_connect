@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LC Analyzer — Lost Connection</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: #0e0e10;
+    color: #e8e4dc;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .header {
+    background: #0e0e10;
+    border-bottom: 1px solid #2a2a2e;
+    padding: 28px 40px 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  .header h1 {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: #e8e4dc;
+  }
+
+  .header .sub {
+    font-size: 13px;
+    color: #6b6b72;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.06em;
+  }
+
+  .main { padding: 32px 40px; max-width: 1100px; }
+
+  .upload-zone {
+    border: 1px dashed #3a3a42;
+    border-radius: 8px;
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 32px;
+    background: #14141a;
+  }
+
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: #c9a96e;
+    background: #1a1a22;
+  }
+
+  .upload-zone input { display: none; }
+
+  .upload-icon {
+    width: 40px; height: 40px;
+    margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #3a3a42;
+    border-radius: 6px;
+    color: #6b6b72;
+  }
+
+  .upload-icon svg { width: 20px; height: 20px; }
+
+  .upload-zone p { font-size: 14px; color: #8a8a94; line-height: 1.6; }
+  .upload-zone strong { color: #c9a96e; font-weight: 500; }
+
+  .filters {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .filter-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .filter-group label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b6b72;
+    font-family: 'Courier New', monospace;
+  }
+
+  select, input[type="date"] {
+    background: #14141a;
+    border: 1px solid #3a3a42;
+    color: #e8e4dc;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  select:hover, input[type="date"]:hover,
+  select:focus, input[type="date"]:focus {
+    border-color: #c9a96e;
+  }
+
+  .btn-reset {
+    background: transparent;
+    border: 1px solid #3a3a42;
+    color: #8a8a94;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    align-self: flex-end;
+  }
+
+  .btn-reset:hover { border-color: #c9a96e; color: #c9a96e; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: #14141a;
+    border: 1px solid #2a2a2e;
+    border-radius: 8px;
+    padding: 20px 24px;
+  }
+
+  .stat-card .label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b6b72;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 8px;
+  }
+
+  .stat-card .value {
+    font-size: 32px;
+    font-weight: 400;
+    color: #c9a96e;
+    letter-spacing: -0.01em;
+  }
+
+  .stat-card .detail {
+    font-size: 12px;
+    color: #5a5a62;
+    margin-top: 4px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6b6b72;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2a2e;
+  }
+
+  .operators-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 40px;
+    font-size: 14px;
+  }
+
+  .operators-table th {
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b6b72;
+    font-family: 'Courier New', monospace;
+    font-weight: 400;
+    padding: 8px 16px;
+    border-bottom: 1px solid #2a2a2e;
+  }
+
+  .operators-table th:last-child { text-align: right; }
+
+  .operators-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #1e1e24;
+    vertical-align: middle;
+  }
+
+  .operators-table td:last-child { text-align: right; }
+
+  .operators-table tr:last-child td { border-bottom: none; }
+
+  .op-name {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .op-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #1e1e2e;
+    border: 1px solid #3a3a4e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #9090b0;
+    font-family: 'Courier New', monospace;
+    flex-shrink: 0;
+  }
+
+  .bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 4px;
+    background: #2a2a2e;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: #c9a96e;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  .count-badge {
+    font-size: 18px;
+    color: #c9a96e;
+    font-weight: 400;
+    min-width: 28px;
+    text-align: right;
+  }
+
+  .rank {
+    color: #5a5a62;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    width: 24px;
+  }
+
+  .chats-section { margin-top: 12px; }
+
+  .chats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .chats-table th {
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5a5a62;
+    font-family: 'Courier New', monospace;
+    font-weight: 400;
+    padding: 6px 12px;
+    border-bottom: 1px solid #2a2a2e;
+  }
+
+  .chats-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #1a1a20;
+    color: #b0aca4;
+  }
+
+  .chats-table tr:hover td { background: #14141a; }
+
+  .op-tag {
+    display: inline-block;
+    background: #1e1e28;
+    border: 1px solid #3a3a48;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #9090aa;
+    font-family: 'Courier New', monospace;
+  }
+
+  .lc-tag {
+    display: inline-block;
+    background: #2a1a14;
+    border: 1px solid #5a3020;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #c9a96e;
+    font-family: 'Courier New', monospace;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: #4a4a52;
+    font-size: 14px;
+    display: none;
+  }
+
+  .hidden { display: none; }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #2a2a2e;
+  }
+
+  .tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    color: #6b6b72;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+    font-family: inherit;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+
+  .tab:hover { color: #b0aca4; }
+  .tab.active { color: #c9a96e; border-bottom-color: #c9a96e; }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .no-data {
+    text-align: center;
+    padding: 48px;
+    color: #4a4a52;
+    font-size: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .main { padding: 20px 16px; }
+    .header { padding: 20px 16px; }
+    .stats-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>LC Analyzer</h1>
+  <span class="sub">лк-lost_connection / Chatwoot</span>
+</div>
+
+<div class="main">
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12M8 8l4-4 4 4"/>
+      </svg>
+    </div>
+    <p><strong>Нажмите или перетащите</strong> файл выгрузки из Chatwoot<br>
+    <span style="font-size:12px; margin-top:6px; display:block;">Формат: .xlsx · Столбцы F–O операторы, V–AB теги</span></p>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="filters">
+      <div class="filter-group">
+        <label>С даты</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="filter-group">
+        <label>По дату</label>
+        <input type="date" id="dateTo">
+      </div>
+      <div class="filter-group">
+        <label>Оператор</label>
+        <select id="opFilter">
+          <option value="">Все операторы</option>
+        </select>
+      </div>
+      <button class="btn-reset" id="resetBtn">Сбросить</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Всего LC</div>
+        <div class="value" id="totalLC">0</div>
+        <div class="detail" id="totalChats">из 0 чатов</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Операторов с LC</div>
+        <div class="value" id="opsCount">0</div>
+        <div class="detail">уникальных</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Лидер по LC</div>
+        <div class="value" id="topOp" style="font-size:18px; padding-top:6px;">—</div>
+        <div class="detail" id="topOpCount"></div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="operators">По операторам</button>
+      <button class="tab" data-tab="chats">Все LC чаты</button>
+    </div>
+
+    <div id="tab-operators" class="tab-panel active">
+      <p class="section-title">Распределение lost connection</p>
+      <table class="operators-table" id="opsTable">
+        <thead>
+          <tr>
+            <th style="width:32px">#</th>
+            <th>Оператор</th>
+            <th>Доля</th>
+            <th>Кол-во LC</th>
+          </tr>
+        </thead>
+        <tbody id="opsBody"></tbody>
+      </table>
+    </div>
+
+    <div id="tab-chats" class="tab-panel">
+      <p class="section-title">Чаты с тегом лк-lost_connection</p>
+      <table class="chats-table" id="chatsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Дата</th>
+            <th>Виновный оператор</th>
+            <th>Все операторы</th>
+            <th>Тег LC в столбце</th>
+          </tr>
+        </thead>
+        <tbody id="chatsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let allData = [];
+let allOperators = [];
+
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+function parseDuration(str) {
+  if (!str) return 0;
+  str = String(str);
+  const minMatch = str.match(/(\d+)\s*мин/i);
+  const secMatch = str.match(/(\d+)\s*сек/i);
+  const mins = minMatch ? parseInt(minMatch[1]) : 0;
+  const secs = secMatch ? parseInt(secMatch[1]) : 0;
+  return mins * 60 + secs;
+}
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    allData = [];
+    const opSet = new Set();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 5) continue;
+
+      const catCols = [row[21], row[22], row[23], row[24], row[25], row[26], row[27]];
+      const lcCol = catCols.findIndex(c => c && String(c).toLowerCase().includes('lost_connection'));
+      if (lcCol === -1) continue;
+
+      const ops = [row[5], row[7], row[9], row[11], row[13]].map(o => o ? String(o).trim() : '');
+      const durs = [row[6], row[8], row[10], row[12], row[14]].map(parseDuration);
+
+      const lastOp = [...ops].reverse().find(o => o) || '';
+      ops.filter(o => o).forEach(o => opSet.add(o));
+
+      let dateStr = row[1] ? String(row[1]) : '';
+      let dateObj = null;
+      if (dateStr) {
+        dateObj = new Date(dateStr.replace(' ', 'T'));
+        if (isNaN(dateObj)) dateObj = null;
+      }
+
+      allData.push({
+        id: row[0],
+        date: dateObj,
+        dateStr: dateStr.slice(0, 10),
+        ops,
+        durs,
+        lastOp,
+        lcColLabel: String.fromCharCode(86 + lcCol),
+        lcTag: catCols[lcCol]
+      });
+    }
+
+    allOperators = [...opSet].sort();
+
+    const opSelect = document.getElementById('opFilter');
+    opSelect.innerHTML = '<option value="">Все операторы</option>';
+    allOperators.forEach(op => {
+      const opt = document.createElement('option');
+      opt.value = op;
+      opt.textContent = op;
+      opSelect.appendChild(opt);
+    });
+
+    if (allData.length > 0) {
+      const dates = allData.filter(d => d.date).map(d => d.date);
+      if (dates.length) {
+        const minD = new Date(Math.min(...dates));
+        const maxD = new Date(Math.max(...dates));
+        document.getElementById('dateFrom').value = minD.toISOString().slice(0, 10);
+        document.getElementById('dateTo').value = maxD.toISOString().slice(0, 10);
+      }
+    }
+
+    uploadZone.innerHTML = `<p style="color:#c9a96e; font-size:14px;">Загружено: <strong>${file.name}</strong><br><span style="color:#6b6b72; font-size:12px;">${allData.length} LC чатов найдено · Нажмите чтобы загрузить другой файл</span></p>`;
+    document.getElementById('results').classList.remove('hidden');
+    render();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function getFiltered() {
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  const op = document.getElementById('opFilter').value;
+
+  return allData.filter(d => {
+    if (from && d.dateStr < from) return false;
+    if (to && d.dateStr > to) return false;
+    if (op && d.lastOp !== op) return false;
+    return true;
+  });
+}
+
+function render() {
+  const data = getFiltered();
+
+  document.getElementById('totalLC').textContent = data.length;
+  document.getElementById('totalChats').textContent = `чатов с тегом LC`;
+
+  const opCounts = {};
+  data.forEach(d => {
+    if (!d.lastOp) return;
+    opCounts[d.lastOp] = (opCounts[d.lastOp] || 0) + 1;
+  });
+
+  const sorted = Object.entries(opCounts).sort((a, b) => b[1] - a[1]);
+  document.getElementById('opsCount').textContent = sorted.length;
+
+  if (sorted.length > 0) {
+    document.getElementById('topOp').textContent = sorted[0][0];
+    document.getElementById('topOpCount').textContent = sorted[0][1] + ' раз';
+  } else {
+    document.getElementById('topOp').textContent = '—';
+    document.getElementById('topOpCount').textContent = '';
+  }
+
+  const maxCount = sorted.length ? sorted[0][1] : 1;
+  const opsBody = document.getElementById('opsBody');
+  opsBody.innerHTML = '';
+
+  if (sorted.length === 0) {
+    opsBody.innerHTML = '<tr><td colspan="4" class="no-data">Нет данных для выбранных фильтров</td></tr>';
+  } else {
+    sorted.forEach(([op, count], idx) => {
+      const pct = Math.round((count / data.length) * 100);
+      const barW = Math.round((count / maxCount) * 100);
+      const initials = op.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+      opsBody.innerHTML += `
+        <tr>
+          <td class="rank">${idx + 1}</td>
+          <td>
+            <div class="op-name">
+              <div class="op-avatar">${initials}</div>
+              <span>${op}</span>
+            </div>
+          </td>
+          <td>
+            <div class="bar-wrap">
+              <div class="bar-track"><div class="bar-fill" style="width:${barW}%"></div></div>
+              <span style="font-size:12px; color:#6b6b72; min-width:32px">${pct}%</span>
+            </div>
+          </td>
+          <td><span class="count-badge">${count}</span></td>
+        </tr>`;
+    });
+  }
+
+  const chatsBody = document.getElementById('chatsBody');
+  chatsBody.innerHTML = '';
+
+  if (data.length === 0) {
+    chatsBody.innerHTML = '<tr><td colspan="5" class="no-data">Нет данных</td></tr>';
+  } else {
+    const sorted2 = [...data].sort((a, b) => b.date - a.date);
+    sorted2.forEach(d => {
+      const opsFiltered = d.ops.filter(o => o);
+      const opsHtml = opsFiltered.map(o =>
+        `<span class="op-tag">${o}</span>`
+      ).join(' ');
+      chatsBody.innerHTML += `
+        <tr>
+          <td style="font-family:'Courier New',monospace; font-size:12px; color:#6b6b72">${d.id}</td>
+          <td style="font-size:12px; color:#8a8a94">${d.dateStr}</td>
+          <td><span style="color:#e8e4dc">${d.lastOp || '—'}</span></td>
+          <td>${opsHtml}</td>
+          <td><span class="lc-tag">кол.${d.lcColLabel}</span></td>
+        </tr>`;
+    });
+  }
+}
+
+document.getElementById('dateFrom').addEventListener('change', render);
+document.getElementById('dateTo').addEventListener('change', render);
+document.getElementById('opFilter').addEventListener('change', render);
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (allData.length > 0) {
+    const dates = allData.filter(d => d.date).map(d => d.date);
+    if (dates.length) {
+      document.getElementById('dateFrom').value = new Date(Math.min(...dates)).toISOString().slice(0, 10);
+      document.getElementById('dateTo').value = new Date(Math.max(...dates)).toISOString().slice(0, 10);
+    }
+    document.getElementById('opFilter').value = '';
+    render();
+  }
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
