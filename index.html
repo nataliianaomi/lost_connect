@@ -263,7 +263,7 @@ function processRows(rows, fileName) {
     if (!row || row.length < 6) continue;
 
     // Collect all operators from file (for full list with 0)
-    for (const ci of [5, 7, 9, 11, 13]) {
+    for (const ci of [6, 8, 10, 12, 14]) {
       if (row[ci]) opSet.add(String(row[ci]).trim());
     }
 
@@ -277,7 +277,7 @@ function processRows(rows, fileName) {
     }
     if (lcCol === -1) continue;
 
-    const ops = [5, 7, 9, 11, 13].map(c => row[c] ? String(row[c]).trim() : '');
+    const ops = [6, 8, 10, 12, 14].map(c => row[c] ? String(row[c]).trim() : '');
     const lastOp = [...ops].reverse().find(o => o) || '';
 
     const dateRaw = row[1] ? String(row[1]) : '';
