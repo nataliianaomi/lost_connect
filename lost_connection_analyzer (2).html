@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lost Connection — Аналитика</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Trebuchet MS', sans-serif;
+  background: #f5f4f0;
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+
+.header {
+  background: #1c1c22;
+  padding: 20px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-left { display: flex; align-items: baseline; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; color: #fff; letter-spacing: 0.02em; }
+.header-badge {
+  font-size: 11px;
+  background: #2e2e38;
+  color: #9a9aaa;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+}
+
+.main { padding: 28px 36px; max-width: 1080px; }
+
+.upload-area {
+  background: #fff;
+  border: 2px dashed #d0cfc8;
+  border-radius: 12px;
+  padding: 40px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 28px;
+}
+.upload-area:hover, .upload-area.drag { border-color: #5b6af0; background: #f8f8ff; }
+.upload-area.loaded { border-style: solid; border-color: #3da85a; background: #f4fbf6; cursor: default; }
+.upload-area input { display: none; }
+
+.upload-icon {
+  width: 48px; height: 48px;
+  background: #f0f0f8;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+  color: #8888bb;
+}
+.upload-icon svg { width: 22px; height: 22px; }
+.upload-area.loaded .upload-icon { background: #e8f7ee; color: #3da85a; }
+
+.upload-title { font-size: 15px; font-weight: 600; color: #2a2a2a; margin-bottom: 4px; }
+.upload-sub { font-size: 13px; color: #888; }
+.upload-area.loaded .upload-title { color: #2a7a40; }
+.upload-area.loaded .upload-sub { color: #5a9a6a; }
+
+.controls {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.ctrl-group { display: flex; flex-direction: column; gap: 5px; }
+.ctrl-group label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #888;
+}
+input[type="date"], select {
+  background: #fff;
+  border: 1.5px solid #ddd;
+  color: #1a1a1a;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+input[type="date"]:focus, select:focus { border-color: #5b6af0; }
+
+.btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-end;
+}
+.btn svg { width: 14px; height: 14px; }
+.btn-ghost { background: #fff; border-color: #ddd; color: #666; }
+.btn-ghost:hover { border-color: #aaa; color: #333; }
+.btn-primary { background: #1c1c22; border-color: #1c1c22; color: #fff; }
+.btn-primary:hover { background: #2e2e3a; }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.kpi {
+  background: #fff;
+  border-radius: 10px;
+  padding: 18px 20px;
+  border: 1px solid #e8e8e4;
+}
+.kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #999; margin-bottom: 6px; }
+.kpi-value { font-size: 28px; font-weight: 700; color: #1a1a1a; line-height: 1; }
+.kpi-sub { font-size: 12px; color: #aaa; margin-top: 4px; }
+.kpi.accent .kpi-value { color: #5b6af0; }
+
+.panel {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8e8e4;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.panel-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0ec;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-title { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: #444; text-transform: uppercase; }
+.panel-count { font-size: 12px; color: #aaa; font-family: monospace; }
+
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0;
+}
+.op-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f5f5f2;
+  border-right: 1px solid #f5f5f2;
+  transition: background 0.1s;
+}
+.op-row:hover { background: #fafaf8; }
+.op-row.has-lc { background: #fffaf5; }
+.op-row.has-lc:hover { background: #fff5ec; }
+
+.op-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: #ececf2;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7878aa;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+.op-row.has-lc .op-avatar { background: #fff0e0; color: #c07820; }
+
+.op-info { flex: 1; min-width: 0; }
+.op-name-text { font-size: 13px; font-weight: 600; color: #2a2a2a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.op-bar-wrap { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.op-bar-bg { flex: 1; height: 3px; background: #ececec; border-radius: 2px; }
+.op-bar-fill { height: 100%; background: #e8a040; border-radius: 2px; transition: width 0.5s ease; }
+.op-pct { font-size: 10px; color: #bbb; font-family: monospace; min-width: 26px; }
+
+.op-count {
+  font-size: 18px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+  color: #ccc;
+}
+.op-row.has-lc .op-count { color: #e8a040; }
+
+.chats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.chats-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #999;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0ec;
+  background: #fafaf8;
+}
+.chats-table td { padding: 10px 16px; border-bottom: 1px solid #f5f5f2; }
+.chats-table tr:last-child td { border-bottom: none; }
+.chats-table tr:hover td { background: #fafaf8; }
+
+.tag-op { display: inline-block; background: #f0f0f8; border-radius: 4px; padding: 2px 8px; font-size: 11px; color: #6666aa; font-weight: 600; margin: 1px; }
+.tag-lc { display: inline-block; background: #fff0e0; border-radius: 4px; padding: 2px 8px; font-size: 11px; color: #b07020; font-weight: 600; }
+
+.hidden { display: none; }
+.empty { padding: 40px; text-align: center; color: #bbb; font-size: 14px; }
+
+.tabs { display: flex; border-bottom: 1px solid #f0f0ec; padding: 0 20px; }
+.tab {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #aaa;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  border-top: none; border-left: none; border-right: none;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.tab:hover { color: #555; }
+.tab.active { color: #1c1c22; border-bottom-color: #1c1c22; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.sort-btn {
+  font-size: 11px;
+  color: #999;
+  background: #f5f5f2;
+  border: 1px solid #e8e8e4;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.sort-btn:hover { background: #eee; color: #555; }
+.sort-btn.active { background: #1c1c22; color: #fff; border-color: #1c1c22; }
+
+@media (max-width: 680px) {
+  .main { padding: 16px; }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .ops-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Lost Connection</h1>
+    <span class="header-badge">лк-lost_connection</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="upload-area" id="uploadArea">
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12M8 8l4-4 4 4"/>
+      </svg>
+    </div>
+    <div class="upload-title">Загрузите выгрузку из Chatwoot</div>
+    <div class="upload-sub">Перетащите файл или нажмите · .xlsx / .xls</div>
+  </div>
+
+  <div id="results" class="hidden">
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <label>С даты</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="ctrl-group">
+        <label>По дату</label>
+        <input type="date" id="dateTo">
+      </div>
+      <div class="ctrl-group">
+        <label>Источник</label>
+        <select id="sourceFilter"><option value="">Все источники</option></select>
+      </div>
+      <button class="btn btn-ghost" id="resetBtn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a5 5 0 109.9-1M3 8V4m0 4H7"/></svg>
+        Сбросить
+      </button>
+      <button class="btn btn-primary" id="exportBtn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 10v3h12v-3M8 2v8M5 7l3 3 3-3"/></svg>
+        Скачать Excel
+      </button>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi accent">
+        <div class="kpi-label">Всего LC</div>
+        <div class="kpi-value" id="kpiTotal">0</div>
+        <div class="kpi-sub">чатов с тегом</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Операторов с LC</div>
+        <div class="kpi-value" id="kpiOps">0</div>
+        <div class="kpi-sub">из <span id="kpiOpsTotal">0</span> всего</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Лидер по LC</div>
+        <div class="kpi-value" id="kpiTop" style="font-size:17px;padding-top:5px">—</div>
+        <div class="kpi-sub" id="kpiTopCount"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Период</div>
+        <div class="kpi-value" id="kpiDays" style="font-size:17px;padding-top:5px">—</div>
+        <div class="kpi-sub" id="kpiPeriod"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Операторы</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="panel-count" id="opsCountLabel"></span>
+          <button class="sort-btn active" id="sortByLC" title="По кол-ву LC">По LC</button>
+          <button class="sort-btn" id="sortByName" title="По алфавиту">А–Я</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="grid">Плитка</button>
+        <button class="tab" data-tab="list">Список</button>
+      </div>
+      <div id="tab-grid" class="tab-panel active">
+        <div class="ops-grid" id="opsGrid"></div>
+      </div>
+      <div id="tab-list" class="tab-panel">
+        <table class="chats-table" id="opsListTable">
+          <thead><tr><th>#</th><th>Оператор</th><th>LC чатов</th><th>Доля от всех LC</th></tr></thead>
+          <tbody id="opsListBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">LC Чаты</span>
+        <span class="panel-count" id="chatsCountLabel"></span>
+      </div>
+      <table class="chats-table">
+        <thead>
+          <tr>
+            <th>ID чата</th>
+            <th>Дата</th>
+            <th>Оператор LC</th>
+            <th>Все операторы</th>
+            <th>Источник</th>
+          </tr>
+        </thead>
+        <tbody id="chatsBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let allData = [];
+let allOperators = [];
+let sortMode = 'lc';
+
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag');
+  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+function parseDuration(str) {
+  if (!str) return 0;
+  str = String(str);
+  const m = str.match(/(\d+)\s*мин/i);
+  const s = str.match(/(\d+)\s*сек/i);
+  return (m ? parseInt(m[1]) : 0) * 60 + (s ? parseInt(s[1]) : 0);
+}
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    allData = [];
+    const opSet = new Set();
+    const sourceSet = new Set();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 5) continue;
+
+      const ops = [row[5], row[7], row[9], row[11], row[13]].map(o => o ? String(o).trim() : '');
+      ops.filter(o => o).forEach(o => opSet.add(o));
+
+      const source = row[2] ? String(row[2]).trim() : '';
+      if (source) sourceSet.add(source);
+
+      const cats = [row[21], row[22], row[23], row[24], row[25], row[26], row[27]];
+      const lcCol = cats.findIndex(c => c && String(c).toLowerCase().includes('lost_connection'));
+      const hasLC = lcCol !== -1;
+
+      const lastOp = [...ops].reverse().find(o => o) || '';
+      const dateStr = row[1] ? String(row[1]) : '';
+      const dateObj = dateStr ? new Date(dateStr.replace(' ', 'T')) : null;
+
+      allData.push({
+        id: row[0],
+        date: (dateObj && !isNaN(dateObj)) ? dateObj : null,
+        dateStr: dateStr.slice(0, 10),
+        ops, lastOp, source,
+        hasLC,
+        lcColLabel: hasLC ? String.fromCharCode(86 + lcCol) : ''
+      });
+    }
+
+    allOperators = [...opSet].sort();
+
+    const srcSelect = document.getElementById('sourceFilter');
+    srcSelect.innerHTML = '<option value="">Все источники</option>';
+    [...sourceSet].sort().forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      srcSelect.appendChild(o);
+    });
+
+    const lcRows = allData.filter(d => d.hasLC);
+    const dates = lcRows.filter(d => d.date).map(d => d.date);
+    if (dates.length) {
+      document.getElementById('dateFrom').value = new Date(Math.min(...dates)).toISOString().slice(0, 10);
+      document.getElementById('dateTo').value = new Date(Math.max(...dates)).toISOString().slice(0, 10);
+    }
+
+    uploadArea.classList.add('loaded');
+    uploadArea.innerHTML = `
+      <div class="upload-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="upload-title">${file.name}</div>
+      <div class="upload-sub">${rows.length - 1} строк загружено · ${allOperators.length} операторов · нажмите чтобы загрузить другой файл</div>`;
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    document.getElementById('results').classList.remove('hidden');
+    render();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function getFiltered() {
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  const src = document.getElementById('sourceFilter').value;
+  return allData.filter(d => {
+    if (!d.hasLC) return false;
+    if (from && d.dateStr < from) return false;
+    if (to && d.dateStr > to) return false;
+    if (src && d.source !== src) return false;
+    return true;
+  });
+}
+
+function render() {
+  const data = getFiltered();
+
+  const opCounts = {};
+  allOperators.forEach(op => opCounts[op] = 0);
+  data.forEach(d => { if (d.lastOp) opCounts[d.lastOp] = (opCounts[d.lastOp] || 0) + 1; });
+
+  const withLC = allOperators.filter(op => opCounts[op] > 0);
+  const maxCount = Math.max(...Object.values(opCounts), 1);
+
+  document.getElementById('kpiTotal').textContent = data.length;
+  document.getElementById('kpiOps').textContent = withLC.length;
+  document.getElementById('kpiOpsTotal').textContent = allOperators.length;
+
+  const sorted = [...allOperators].sort((a, b) => opCounts[b] - opCounts[a]);
+  if (sorted.length && opCounts[sorted[0]] > 0) {
+    document.getElementById('kpiTop').textContent = sorted[0];
+    document.getElementById('kpiTopCount').textContent = opCounts[sorted[0]] + ' раз';
+  } else {
+    document.getElementById('kpiTop').textContent = '—';
+    document.getElementById('kpiTopCount').textContent = '';
+  }
+
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  if (from && to) {
+    const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+    document.getElementById('kpiDays').textContent = days + ' дн.';
+    document.getElementById('kpiPeriod').textContent = `${from} — ${to}`;
+  }
+
+  document.getElementById('opsCountLabel').textContent = `${withLC.length} с LC · ${allOperators.length} всего`;
+  document.getElementById('chatsCountLabel').textContent = `${data.length} записей`;
+
+  const displayOps = sortMode === 'lc'
+    ? [...allOperators].sort((a, b) => opCounts[b] - opCounts[a])
+    : [...allOperators].sort();
+
+  const opsGrid = document.getElementById('opsGrid');
+  opsGrid.innerHTML = '';
+  displayOps.forEach(op => {
+    const cnt = opCounts[op];
+    const pct = data.length ? Math.round((cnt / data.length) * 100) : 0;
+    const barW = Math.round((cnt / maxCount) * 100);
+    const initials = op.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const hasLcClass = cnt > 0 ? 'has-lc' : '';
+    opsGrid.innerHTML += `
+      <div class="op-row ${hasLcClass}">
+        <div class="op-avatar">${initials}</div>
+        <div class="op-info">
+          <div class="op-name-text">${op}</div>
+          <div class="op-bar-wrap">
+            <div class="op-bar-bg"><div class="op-bar-fill" style="width:${barW}%"></div></div>
+            <span class="op-pct">${cnt > 0 ? pct + '%' : ''}</span>
+          </div>
+        </div>
+        <div class="op-count">${cnt}</div>
+      </div>`;
+  });
+
+  const opsListBody = document.getElementById('opsListBody');
+  opsListBody.innerHTML = '';
+  displayOps.forEach((op, idx) => {
+    const cnt = opCounts[op];
+    const pct = data.length ? Math.round((cnt / data.length) * 100) : 0;
+    opsListBody.innerHTML += `<tr>
+      <td style="color:#aaa;font-family:monospace;font-size:12px">${idx + 1}</td>
+      <td style="font-weight:600">${op}</td>
+      <td style="font-size:18px;font-weight:700;color:${cnt > 0 ? '#e8a040' : '#ccc'}">${cnt}</td>
+      <td style="color:#999;font-size:12px">${cnt > 0 ? pct + '%' : '—'}</td>
+    </tr>`;
+  });
+
+  const chatsBody = document.getElementById('chatsBody');
+  chatsBody.innerHTML = '';
+  if (data.length === 0) {
+    chatsBody.innerHTML = '<tr><td colspan="5" class="empty">Нет данных для выбранных фильтров</td></tr>';
+  } else {
+    [...data].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(d => {
+      const opsHtml = d.ops.filter(o => o).map(o => `<span class="tag-op">${o}</span>`).join(' ');
+      chatsBody.innerHTML += `<tr>
+        <td style="font-family:monospace;font-size:12px;color:#aaa">${d.id}</td>
+        <td style="font-size:12px;color:#888">${d.dateStr}</td>
+        <td><span class="tag-lc">${d.lastOp || '—'}</span></td>
+        <td>${opsHtml}</td>
+        <td style="font-size:12px;color:#aaa">${d.source}</td>
+      </tr>`;
+    });
+  }
+}
+
+document.getElementById('dateFrom').addEventListener('change', render);
+document.getElementById('dateTo').addEventListener('change', render);
+document.getElementById('sourceFilter').addEventListener('change', render);
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  const lcRows = allData.filter(d => d.hasLC);
+  const dates = lcRows.filter(d => d.date).map(d => d.date);
+  if (dates.length) {
+    document.getElementById('dateFrom').value = new Date(Math.min(...dates)).toISOString().slice(0, 10);
+    document.getElementById('dateTo').value = new Date(Math.max(...dates)).toISOString().slice(0, 10);
+  }
+  document.getElementById('sourceFilter').value = '';
+  render();
+});
+
+document.getElementById('sortByLC').addEventListener('click', () => {
+  sortMode = 'lc';
+  document.getElementById('sortByLC').classList.add('active');
+  document.getElementById('sortByName').classList.remove('active');
+  render();
+});
+document.getElementById('sortByName').addEventListener('click', () => {
+  sortMode = 'name';
+  document.getElementById('sortByName').classList.add('active');
+  document.getElementById('sortByLC').classList.remove('active');
+  render();
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const data = getFiltered();
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  const today = new Date().toISOString().slice(0, 10);
+
+  const opCounts = {};
+  allOperators.forEach(op => opCounts[op] = 0);
+  data.forEach(d => { if (d.lastOp) opCounts[d.lastOp] = (opCounts[d.lastOp] || 0) + 1; });
+
+  const wb = XLSX.utils.book_new();
+
+  const summaryHeader = ['Оператор', 'LC чатов', '% от всех LC'];
+  const summaryRows = [summaryHeader];
+  [...allOperators].sort((a, b) => opCounts[b] - opCounts[a]).forEach(op => {
+    const cnt = opCounts[op];
+    const pct = data.length ? Math.round((cnt / data.length) * 100) : 0;
+    summaryRows.push([op, cnt, cnt > 0 ? pct + '%' : '0%']);
+  });
+  summaryRows.push(['ИТОГО', data.length, '100%']);
+
+  const ws1 = XLSX.utils.aoa_to_sheet(summaryRows);
+  ws1['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'ReportTable');
+
+  const chatsHeader = ['ID чата', 'Дата', 'Оператор LC', 'Все операторы', 'Источник'];
+  const chatsRows = [chatsHeader];
+  [...data].sort((a, b) => a.dateStr.localeCompare(b.dateStr)).forEach(d => {
+    chatsRows.push([d.id, d.dateStr, d.lastOp || '—', d.ops.filter(o => o).join(', '), d.source]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(chatsRows);
+  ws2['!cols'] = [{ wch: 10 }, { wch: 14 }, { wch: 18 }, { wch: 40 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'LC Чаты');
+
+  const period = (from && to) ? `${from}_${to}` : today;
+  XLSX.writeFile(wb, `LC_Report_${period}.xlsx`);
+});
+</script>
+</body>
+</html>
