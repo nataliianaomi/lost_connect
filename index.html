@@ -404,7 +404,7 @@ function parseDuration(str) {
 function processFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
-    const wb = XLSX.read(e.target.result, { type: 'array' });
+  const wb = XLSX.read(e.target.result, { type: 'array', sheetRows: 15000 });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
